@@ -50,11 +50,9 @@ export async function generateMetadata(): Promise<Metadata> {
   creator: store.storeName,
   publisher: store.storeName,
   metadataBase: new URL("https://kidstoycastle.com"),
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    locale: "en_US",
-    url: "https://kidstoycastle.com",
+    locale: "en_BD",
     siteName: store.storeName,
     title,
     description: store.tagline || store.storeName,
@@ -69,6 +67,7 @@ export async function generateMetadata(): Promise<Metadata> {
   robots: {
     index: true,
     follow: true,
+    "max-image-preview": "large",
     googleBot: { index: true, follow: true, "max-video-preview": -1, "max-image-preview": "large" },
   },
   icons: {

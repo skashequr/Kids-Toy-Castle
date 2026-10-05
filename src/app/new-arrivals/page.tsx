@@ -2,8 +2,12 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { ProductListingClient } from "@/components/product/product-listing-client";
 import { getProducts } from "@/server/services/products";
+import { getStoreInformation } from "@/server/services/settings";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "New Arrivals" };
+export async function generateMetadata() {
+  return pageMetadata("New Arrivals", "Discover new kids toys, play tents and baby play products. Cash on Delivery across Bangladesh.", "/new-arrivals", await getStoreInformation());
+}
 export const dynamic = "force-dynamic";
 
 export default async function NewArrivalsPage() {

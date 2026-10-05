@@ -10,8 +10,21 @@ import {
 import { CATEGORY_GROUPS } from "@/lib/data";
 import type { Category } from "@/types";
 import { RichTextContent } from "@/components/ui/rich-text";
+import { cache } from "react";
+import { getStoreInformation } from "@/server/services/settings";
+import { pageMetadata, seoDescription } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+const getPageCategory = cache(getCategoryBySlug);
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const [category, store] = await Promise.all([getPageCategory(slug), getStoreInformation()]);
+  const group = CATEGORY_GROUPS[slug];
+  if (!category && !group) notFound();
+  const title = category?.name || group!.name;
+  return pageMetadata(title, seoDescription(category?.description || group?.description || "") || `Shop ${title} at ${store.storeName}. Cash on Delivery across Bangladesh.`, `/category/${encodeURIComponent(slug)}`, store, category?.image);
+}
 
 export default async function CategoryPage({
   params,
@@ -21,7 +34,7 @@ export default async function CategoryPage({
   const { slug } = await params;
 
   // A real category, or a nav "group" (e.g. /category/fashion) that spans several.
-  const category = await getCategoryBySlug(slug);
+  const category = await getPageCategory(slug);
   const group = CATEGORY_GROUPS[slug];
 
   if (!category && !group) notFound();

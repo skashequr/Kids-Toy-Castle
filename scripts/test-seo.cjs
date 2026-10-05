@@ -1,0 +1,45 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const ts = require("typescript");
+function load(file, mocks = {}) {
+  const exports = {};
+  const source = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText;
+  vm.runInNewContext(source, { exports, URL, require: (name) => mocks[name] ?? require(name) });
+  return exports;
+}
+const stores = load("src/lib/store-information.ts");
+const richText = load("src/lib/rich-text.ts");
+const seo = load("src/lib/seo.ts", { "./store-information": stores, "./rich-text": richText });
+const store = { ...stores.DEFAULT_STORE_INFORMATION, storeName: "KidsToyCastle", logo: "/logo.png", phone: "+8801819788257", email: "store@example.com", facebook: "https://www.facebook.com/KidsToyCastel" };
+const product = { id: "1", name: "Actual Tent", slug: "actual-tent" };
+const category = { name: "Actual Category", slug: "actual-category" };
+const data = seo.homeStructuredData(store, [product], [category]);
+const graph = data["@graph"];
+assert.equal(graph[0]["@type"], "OnlineStore");
+assert.equal(graph[0].logo.url, "https://kidstoycastle.com/logo.png");
+assert.equal(graph[0].email, store.email);
+assert.equal(graph[0].sameAs[0], store.facebook);
+assert.equal(graph[0].hasMerchantReturnPolicy, undefined, "Do not publish the conflicting 3-day claim");
+assert.equal(graph[0].priceRange, undefined, "Do not hardcode outdated prices");
+assert.equal(graph[3].numberOfItems, 1);
+assert.equal(graph[3].itemListElement[0].url, "https://kidstoycastle.com/product/actual-tent");
+assert.equal(graph[4].numberOfItems, 1);
+assert.equal(graph[4].itemListElement[0].url, "https://kidstoycastle.com/category/actual-category");
+assert.equal(seo.homeStructuredData(store, [], [])["@graph"][3].numberOfItems, 0);
+const metadata = seo.pageMetadata(seo.HOME_TITLE, seo.HOME_DESCRIPTION, "/", store);
+assert.equal(metadata.title.absolute, "Kids Play Tent, Baby Tent & Playpen in Bangladesh | KidsToyCastle");
+assert.equal(metadata.alternates.canonical, "https://kidstoycastle.com/");
+assert.equal(metadata.twitter.card, "summary_large_image");
+assert.equal(metadata.openGraph.siteName, store.storeName);
+assert.equal(seo.pageMetadata("Actual Tent", "Description", "/product/actual-tent", store).alternates.canonical, "https://kidstoycastle.com/product/actual-tent");
+assert.equal(seo.seoImage("YOUR-LOGO-IMAGE-URL-HERE"), "https://kidstoycastle.com/cover.png");
+assert.equal(seo.seoImage("javascript:alert(1)"), "https://kidstoycastle.com/cover.png");
+assert.equal(seo.seoDescription("**Kids tent** [[font:hind:12]]বাংলা[[/font]]"), "Kids tent বাংলা");
+const malicious = { name: "</script><script>alert(1)</script>" };
+const serialized = seo.serializeJsonLd(malicious);
+assert.ok(!serialized.includes("</script>"));
+assert.equal(JSON.parse(serialized).name, malicious.name);
+assert.ok(!fs.readFileSync("src/app/layout.tsx", "utf8").includes('alternates: { canonical: "/" }'), "Other pages must not inherit a homepage canonical");
+console.log("SEO metadata, canonical URLs, dynamic schema, logo fallback, rich text and JSON-LD safety tests passed.");

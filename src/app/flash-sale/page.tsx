@@ -2,8 +2,12 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { FlashSale } from "@/components/home/flash-sale";
 import { getActiveFlashSales } from "@/server/services/flashSales";
+import { getStoreInformation } from "@/server/services/settings";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Flash Sale" };
+export async function generateMetadata() {
+  return pageMetadata("Flash Sale", "Explore current offers on kids toys and baby play products. Cash on Delivery across Bangladesh.", "/flash-sale", await getStoreInformation());
+}
 export const dynamic = "force-dynamic";
 
 export default async function FlashSalePage() {

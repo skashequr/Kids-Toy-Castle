@@ -9,11 +9,18 @@ import { getProducts } from "@/server/services/products";
 import { getActiveFlashSales } from "@/server/services/flashSales";
 import { getCategoriesWithCounts } from "@/server/services/categories";
 import { getActiveBanners } from "@/server/services/banners";
+import { getStoreInformation } from "@/server/services/settings";
+import { HOME_TITLE, HOME_DESCRIPTION, pageMetadata, homeStructuredData, serializeJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const store = await getStoreInformation();
+  return pageMetadata(HOME_TITLE, HOME_DESCRIPTION.replaceAll("KidsToyCastle", store.storeName), "/", store);
+}
+
 export default async function HomePage() {
-  const [categories, featured, arrivals, fallbackProducts, flashProducts, heroBanners, middleBanners] = await Promise.all([
+  const [categories, featured, arrivals, fallbackProducts, flashProducts, heroBanners, middleBanners, store] = await Promise.all([
     getCategoriesWithCounts(),
     getProducts({ isFeatured: true, limit: 4 }),
     getProducts({ isNew: true, limit: 4 }),
@@ -21,12 +28,15 @@ export default async function HomePage() {
     getActiveFlashSales(),
     getActiveBanners("hero"),
     getActiveBanners("homepage-mid"),
+    getStoreInformation(),
   ]);
   const featuredProducts = featured.length > 0 ? featured : fallbackProducts;
   const arrivalProducts = arrivals.length > 0 ? arrivals : fallbackProducts;
+  const seoProducts = [...new Map([...featuredProducts, ...arrivalProducts].map((product) => [product.id, product])).values()];
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(homeStructuredData(store, seoProducts, categories)) }} />
       <Header />
       <main>
         <Hero banners={heroBanners} />
