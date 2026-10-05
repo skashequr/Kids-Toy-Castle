@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { normalizeSteadfastStatus } from "@/lib/steadfast-status";
 
 const STEADFAST_BASE_URL = "https://portal.packzy.com/api/v1";
@@ -113,6 +114,8 @@ export type FraudCheckResult = {
     cancelled: number;
     delivery_rate: string;
     customer_rating?: string;
+    source?: string;
+    data_type?: string;
   }>;
 };
 
@@ -242,18 +245,55 @@ export async function getSteadfastPoliceStations() {
 }
 
 export async function checkCourierFraud(phone: string) {
-  const response = await fetch("https://elitemart.com.bd/fraud-check/lookup", {
-    method: "POST",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  const body = (await response.json().catch(() => null)) as
-    | { success?: boolean; data?: FraudCheckResult; message?: string }
-    | null;
-  if (!response.ok || !body?.success || !body.data) {
-    throw new Error(body?.message || `Fraud lookup failed (${response.status}).`);
+  let response: Response;
+  try {
+    response = await fetch("https://elitemart.com.bd/fraud-check/lookup", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ phone }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    throw new Error(error instanceof Error && error.name === "TimeoutError"
+      ? "Courier fraud checker did not respond in time. Please retry."
+      : "Could not connect to the courier fraud checker. Please retry.");
   }
-  return body.data;
+  const body = (await response.json().catch(() => null)) as
+    | { success?: boolean; data?: unknown; message?: unknown; error?: unknown }
+    | null;
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(`Elite Mart blocked this server's fraud lookup (${response.status}). Please retry later or ask the provider to approve server access. Steadfast API keys do not grant access to this separate service.`);
+  }
+  if (response.status === 429) {
+    throw new Error("Courier fraud checker request limit reached. Please wait before trying again.");
+  }
+  if (!response.ok || body?.success !== true) {
+    const message = typeof body?.error === "string" ? body.error : body?.message;
+    throw new Error(typeof message === "string" && message.trim()
+      ? message.slice(0, 300)
+      : `Courier fraud checker is unavailable (${response.status}). Please retry later.`);
+  }
+  const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+  const rate = z.string().max(40);
+  const result = z.object({
+    phone: z.literal(phone),
+    total_orders: count,
+    total_delivered: count,
+    total_cancelled: count,
+    delivery_rate: rate,
+    steadfast_configured: z.boolean().optional(),
+    couriers: z.array(z.object({
+      courier_name: z.string().min(1).max(100),
+      orders: count,
+      delivered: count,
+      cancelled: count,
+      delivery_rate: rate,
+      customer_rating: z.string().max(100).optional(),
+      source: z.string().max(150).optional(),
+      data_type: z.string().max(50).optional(),
+    })).max(30),
+  }).safeParse(body.data);
+  if (!result.success) throw new Error("Courier fraud checker returned an incomplete or invalid report. Please retry later.");
+  return result.data;
 }

@@ -2,16 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CreditCard, RefreshCw, RotateCcw, Search, ShieldCheck } from "lucide-react";
+import { Building2, CreditCard, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { CourierFraudCheck } from "./courier-fraud-check";
 import {
   loadSteadfastPaymentDetails,
   lookupSteadfastStatus,
   refreshSteadfastOverview,
   requestSteadfastReturn,
-  runCourierFraudCheck,
   type SteadfastOverview,
 } from "@/server/actions/steadfast";
-import type { FraudCheckResult } from "@/server/services/steadfast";
 import { toast } from "@/components/ui/toaster";
 
 type BookedOrder = { id: string; orderNumber: string; customer: string };
@@ -46,8 +45,6 @@ export function SteadfastDataClient({
   const [lookupKind, setLookupKind] = useState<"invoice" | "tracking" | "consignment">("invoice");
   const [lookupValue, setLookupValue] = useState("");
   const [lookupResult, setLookupResult] = useState("");
-  const [fraudPhone, setFraudPhone] = useState("");
-  const [fraudResult, setFraudResult] = useState<FraudCheckResult | null>(null);
   const [returnOrderId, setReturnOrderId] = useState(bookedOrders[0]?.id ?? "");
   const [returnReason, setReturnReason] = useState("");
   const [paymentDetails, setPaymentDetails] = useState<Record<string, unknown> | null>(null);
@@ -105,13 +102,6 @@ export function SteadfastDataClient({
     setLookupResult("");
     const result = await lookupSteadfastStatus(lookupKind, lookupValue);
     if (result.ok) setLookupResult(result.deliveryStatus);
-    else toast.error(result.error);
-  });
-
-  const runFraudCheck = () => perform(async () => {
-    setFraudResult(null);
-    const result = await runCourierFraudCheck(fraudPhone);
-    if (result.ok) setFraudResult(result.result);
     else toast.error(result.error);
   });
 
@@ -183,7 +173,7 @@ export function SteadfastDataClient({
 
         {tab === "tools" && <div className="grid gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-[#dcecf5] p-5"><h3 className="font-serif text-lg font-bold text-[#23557d]">Status lookup</h3><p className="mt-1 text-xs text-[#7895aa]">Lookup by invoice, tracking code or consignment ID.</p><div className="mt-4 grid gap-3 sm:grid-cols-[150px_1fr_auto]"><select value={lookupKind} onChange={(event) => setLookupKind(event.target.value as typeof lookupKind)} className="h-11 rounded-xl border border-[#c9e3f3] px-3 text-sm"><option value="invoice">Invoice</option><option value="tracking">Tracking code</option><option value="consignment">Consignment ID</option></select><input value={lookupValue} onChange={(event) => setLookupValue(event.target.value)} className="h-11 rounded-xl border border-[#c9e3f3] px-3 text-sm" placeholder="Enter value" /><button type="button" onClick={runLookup} disabled={loading} className="h-11 rounded-xl bg-[#238fda] px-4 text-sm font-semibold text-white">Check</button></div>{lookupResult && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold capitalize text-emerald-700">Status: {lookupResult.replaceAll("_", " ")}</p>}</div>
-          <div className="rounded-2xl border border-[#dcecf5] p-5"><h3 className="flex items-center gap-2 font-serif text-lg font-bold text-[#23557d]"><ShieldCheck className="h-5 w-5" /> Courier fraud check</h3><p className="mt-1 text-xs text-[#7895aa]">Cross-courier delivery history by customer phone.</p><div className="mt-4 flex gap-3"><input value={fraudPhone} onChange={(event) => setFraudPhone(event.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border border-[#c9e3f3] px-3 text-sm" placeholder="01XXXXXXXXX" /><button type="button" onClick={runFraudCheck} disabled={loading} className="h-11 rounded-xl bg-[#173f67] px-4 text-sm font-semibold text-white">Check</button></div>{fraudResult && <div className="mt-4 space-y-3"><div className="grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-[#f1faff] p-3"><b>{fraudResult.total_orders}</b><span className="block text-[10px] text-[#7895aa]">Orders</span></div><div className="rounded-xl bg-emerald-50 p-3 text-emerald-700"><b>{fraudResult.total_delivered}</b><span className="block text-[10px]">Delivered</span></div><div className="rounded-xl bg-red-50 p-3 text-red-600"><b>{fraudResult.total_cancelled}</b><span className="block text-[10px]">Cancelled</span></div></div><p className="text-sm font-semibold text-[#23557d]">Delivery rate: {fraudResult.delivery_rate}</p>{fraudResult.couriers.map((courier) => <div key={courier.courier_name} className="flex justify-between border-t border-[#e3f1fa] pt-2 text-xs"><span>{courier.courier_name}</span><span>{courier.delivery_rate}</span></div>)}</div>}</div>
+          <CourierFraudCheck />
         </div>}
       </div>
     </section>

@@ -37,10 +37,11 @@ function errorMessage(error: unknown) {
 }
 
 function normalizeBangladeshPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 13 && digits.startsWith("880")) return digits.slice(2);
-  if (digits.length === 11 && digits.startsWith("01")) return digits;
-  return null;
+  if (typeof value !== "string") return null;
+  const digits = value.replace(/[০-৯]/g, (digit) => String("০১২৩৪৫৬৭৮৯".indexOf(digit)))
+    .replace(/[\s()+-]/g, "");
+  const phone = digits.startsWith("880") ? digits.slice(2) : digits;
+  return /^01[3-9]\d{8}$/.test(phone) ? phone : null;
 }
 
 export async function refreshSteadfastBalance(): Promise<
